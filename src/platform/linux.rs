@@ -18,7 +18,7 @@ impl crate::InhibitionManager for InhibitionManager {
     type Error = dbus::Error;
     type Lock = Lock;
 
-    fn lock(&self, lock_type: LockType) -> Result<Lock, dbus::Error> {
+    fn lock(&self, lock_type: LockType) -> Result<Lock, Self::Error> {
         // TODO: try to keep a persistent connection.
         // Can probably accomplish this with some combination of Pin<Box<LoginManager>> and ManuallyDrop<LoginManagerConnection<'static>>.
         let connection = self.manager.connect();
