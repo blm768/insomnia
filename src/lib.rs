@@ -22,10 +22,9 @@ pub enum LockType {
     ManualShutdown,
 }
 
-#[cfg(target_os = "linux")]
-pub type PlatformManager = platform::linux::InhibitionManager;
-
 // TODO: keep a single persistent instance? (probably...)
-pub fn manager() -> Result<PlatformManager, <PlatformManager as InhibitionManager>::Error> {
-    PlatformManager::new()
+pub fn manager(
+) -> Result<platform::InhibitionManager, <platform::InhibitionManager as InhibitionManager>::Error>
+{
+    platform::InhibitionManager::new()
 }
