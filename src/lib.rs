@@ -20,6 +20,8 @@ Probably requires using another API call on Windows to inhibit the screensaver; 
 pub enum LockType {
     AutomaticSuspend,
     ManualSuspend,
+    // TODO: put this behind a feature instead? (not supported on Windows.)
+    #[cfg(target_os = "linux")]
     ManualShutdown,
 }
 
