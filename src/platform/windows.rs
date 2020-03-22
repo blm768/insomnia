@@ -13,7 +13,6 @@ pub struct InhibitionManager {
 impl InhibitionManager {
     pub fn new() -> Result<Self, Error> {
         let (sender, receiver) = mpsc::channel();
-        // TODO: probably don't need a background thread on most non-Windows platforms.
         thread::Builder::new()
             .stack_size(INHIBITOR_THREAD_STACK_SIZE)
             .spawn(move || {
