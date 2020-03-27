@@ -1,3 +1,4 @@
+use enum_map::Enum;
 use enumset::{EnumSet, EnumSetType};
 
 pub mod platform;
@@ -11,12 +12,18 @@ pub trait InhibitionManager {
     fn lock(&self, types: EnumSet<LockType>) -> Result<Self::Lock, Self::Error>;
 }
 
+/// Inhibits a particular power management operation until the `Lock` is dropped.
+///
+/// Note that on some platforms, the lock *may* be terminated early under rare circumstances, i.e. if `systemd_logind` is restarted on Linux.
 pub trait Lock {}
 
 /* TODO: support inhibiting screensaver and monitor power saving?
 (Requires using the GNOME API on Linux (need to investigate what APIs other DEs provide)
 Probably requires using another API call on Windows to inhibit the screensaver; SetThreadExecutionState apparently doesn't do that. */
-#[derive(Debug, EnumSetType)]
+/// The type of power management operation to inhibit
+///
+/// Note that on some platforms, one variant of this enum may imply another. For instance, on Windows, it's not possible to inhibit `ManualSuspend` without also inhibiting `AutomaticSuspend`.
+#[derive(Debug, Enum, EnumSetType)]
 pub enum LockType {
     AutomaticSuspend,
     ManualSuspend,
