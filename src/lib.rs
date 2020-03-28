@@ -1,3 +1,4 @@
+#[cfg(target_os = "windows")]
 use enum_map::Enum;
 use enumset::{EnumSet, EnumSetType};
 
@@ -23,7 +24,8 @@ Probably requires using another API call on Windows to inhibit the screensaver; 
 /// The type of power management operation to inhibit
 ///
 /// Note that on some platforms, one variant of this enum may imply another. For instance, on Windows, it's not possible to inhibit `ManualSuspend` without also inhibiting `AutomaticSuspend`.
-#[derive(Debug, Enum, EnumSetType)]
+#[derive(Debug, EnumSetType)]
+#[cfg_attr(target_os = "windows", derive(Enum))]
 pub enum LockType {
     AutomaticSuspend,
     ManualSuspend,
