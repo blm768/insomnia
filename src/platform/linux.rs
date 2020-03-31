@@ -1,19 +1,32 @@
 use std::borrow::Cow;
+use std::mem::ManuallyDrop;
 
 use dbus::arg::OwnedFd;
 use enumset::EnumSet;
-use logind_dbus::LoginManager;
+use logind_dbus::{LoginManager, LoginManagerConnection};
 
 use crate::LockType;
 
 pub struct InhibitionManager {
-    manager: LoginManager,
+    _manager: Box<LoginManager>,
+    connection: ManuallyDrop<LoginManagerConnection<'static>>,
 }
 
 impl InhibitionManager {
     pub fn new() -> Result<Self, dbus::Error> {
-        let manager = LoginManager::new()?;
-        Ok(Self { manager })
+        let manager = Box::new(LoginManager::new()?);
+        let static_manager: &'static _ = unsafe { &*(&*manager as *const LoginManager) };
+        let connection = ManuallyDrop::new(static_manager.connect());
+        Ok(Self {
+            _manager: manager,
+            connection,
+        })
+    }
+}
+
+impl Drop for InhibitionManager {
+    fn drop(&mut self) {
+        unsafe { ManuallyDrop::drop(&mut self.connection) };
     }
 }
 
@@ -22,13 +35,10 @@ impl crate::InhibitionManager for InhibitionManager {
     type Lock = Lock;
 
     fn lock(&self, types: EnumSet<LockType>) -> Result<Lock, Self::Error> {
-        // TODO: try to keep a persistent connection.
-        // Can probably accomplish this with some combination of Pin<Box<LoginManager>> and ManuallyDrop<LoginManagerConnection<'static>>.
-        let connection = self.manager.connect();
-        // TODO: handle durations properly.
         // TODO: provide better where/why info.
         let types_str = lock_types_str(types);
-        let handle = connection.inhibit(&types_str, "who", "why", "block")?;
+        // TODO: recover from connection closure?
+        let handle = self.connection.inhibit(&types_str, "who", "why", "block")?;
         Ok(Lock { _handle: handle })
     }
 }
