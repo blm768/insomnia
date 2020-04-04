@@ -2,14 +2,23 @@
 use enum_map::Enum;
 use enumset::{EnumSet, EnumSetType};
 
+/// Platform-specific types
 pub mod platform;
 
 // TODO: need some way of handling disconnections.
 
+/// Common trait implemented by all platform-specific inhibition managers
+///
+/// Produces [`Lock`]s, which inhibit specific power management operations.
+///
+/// [`Lock`]: ./trait.Lock.html
 pub trait InhibitionManager {
     type Error: std::error::Error;
     type Lock: Lock;
 
+    /// Produces a new [`Lock`] that inhibits the given operations
+    ///
+    /// [`Lock`]: ./trait.Lock.html
     fn lock(&self, types: EnumSet<LockType>) -> Result<Self::Lock, Self::Error>;
 }
 
@@ -27,14 +36,18 @@ Probably requires using another API call on Windows to inhibit the screensaver; 
 #[derive(Debug, EnumSetType)]
 #[cfg_attr(target_os = "windows", derive(Enum))]
 pub enum LockType {
+    /// Automatic suspension (managed by the system idle timer)
     AutomaticSuspend,
+    /// Manual suspension
     ManualSuspend,
     // TODO: put this behind a feature instead? (not supported on Windows.)
+    /// Manual shutdown
     #[cfg(target_os = "linux")]
     ManualShutdown,
 }
 
 // TODO: keep a single persistent instance? (probably...)
+/// Constructs a new [`InhibitionManager`] for the current platform.
 pub fn manager(
 ) -> Result<platform::InhibitionManager, <platform::InhibitionManager as InhibitionManager>::Error>
 {

@@ -65,7 +65,9 @@ impl InhibitionManagerImpl {
 
 #[derive(Debug)]
 pub enum Error {
+    /// Failed to start the background thread (likely due to memory exhaustion).
     FailedToStartThread(std::io::Error),
+    /// The background thread exited early.
     ThreadTerminated,
 }
 
