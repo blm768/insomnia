@@ -1,20 +1,18 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::sync::mpsc::{self, Sender};
-use std::thread;
-
-use enum_map::EnumMap;
 use enumset::EnumSet;
-use winapi::um::{winbase, winnt};
+use winapi::shared::minwindef::DWORD;
+use winapi::um::errhandlingapi;
+use winapi::um::minwinbase::REASON_CONTEXT;
+use winapi::um::winnt::{HANDLE, POWER_REQUEST_TYPE};
+use winapi::um::{handleapi, winbase, winnt};
 
 use crate::LockType;
 
 #[derive(Debug)]
-pub struct InhibitionManager(Rc<RefCell<InhibitionManagerImpl>>);
+pub struct InhibitionManager();
 
 impl InhibitionManager {
     pub fn new() -> Result<Self, Error> {
-        Ok(Self(Rc::new(RefCell::new(InhibitionManagerImpl::new()?))))
+        Ok(Self())
     }
 }
 
@@ -23,52 +21,17 @@ impl crate::InhibitionManager for InhibitionManager {
     type Lock = Lock;
 
     fn lock(&self, types: EnumSet<LockType>) -> Result<Lock, Self::Error> {
-        Lock::new(types, Rc::clone(&self.0))
-    }
-}
-
-#[derive(Debug)]
-struct InhibitionManagerImpl {
-    sender: Sender<EnumSet<LockType>>,
-    active_locks: EnumMap<LockType, usize>,
-}
-
-impl InhibitionManagerImpl {
-    fn new() -> Result<Self, Error> {
-        let (sender, receiver) = mpsc::channel();
-        thread::Builder::new()
-            .stack_size(INHIBITOR_THREAD_STACK_SIZE)
-            .spawn(move || {
-                while let Ok(state) = receiver.recv() {
-                    do_inhibit_sleep(state);
-                }
-            })
-            .map_err(Error::FailedToStartThread)?;
-        Ok(Self {
-            sender,
-            active_locks: EnumMap::new(),
-        })
-    }
-
-    fn update(&self) -> Result<(), Error> {
-        let lock_types = self
-            .active_locks
-            .iter()
-            .filter(|(_, v)| **v > 0)
-            .map(|(k, _)| k)
-            .collect();
-        self.sender
-            .send(lock_types)
-            .map_err(|_| Error::ThreadTerminated)
+        Lock::new(types)
     }
 }
 
 #[derive(Debug)]
 pub enum Error {
-    /// Failed to start the background thread (likely due to memory exhaustion).
-    FailedToStartThread(std::io::Error),
-    /// The background thread exited early.
-    ThreadTerminated,
+    FailedToCreateRequest(DWORD),
+    FailedToLock {
+        lock_type: LockType,
+        err_code: DWORD,
+    },
 }
 
 impl std::error::Error for Error {}
@@ -76,58 +39,87 @@ impl std::error::Error for Error {}
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::FailedToStartThread(e) => write!(f, "failed to start background thread: {}", e),
-            Self::ThreadTerminated => write!(f, "background thread terminated"),
+            // TODO: format Windows error codes.
+            Self::FailedToCreateRequest(_) => write!(f, "failed to create power request"),
+            Self::FailedToLock { lock_type, .. } => {
+                write!(f, "failed lock operation {:?}", lock_type)
+            }
         }
     }
 }
 
 #[derive(Debug)]
 pub struct Lock {
-    manager: Rc<RefCell<InhibitionManagerImpl>>,
+    request: PowerRequest,
     types: EnumSet<LockType>,
 }
 
 impl Lock {
-    fn new(
-        types: EnumSet<LockType>,
-        manager: Rc<RefCell<InhibitionManagerImpl>>,
-    ) -> Result<Self, Error> {
-        {
-            let mut borrowed = manager.borrow_mut();
-            for lock_type in types.iter() {
-                borrowed.active_locks[lock_type] += 1;
+    fn new(types: EnumSet<LockType>) -> Result<Self, Error> {
+        let request = PowerRequest::new().map_err(Error::FailedToCreateRequest)?;
+        let mut failed: Option<(LockType, DWORD)> = None;
+        for lock_type in types.iter() {
+            let result =
+                unsafe { winbase::PowerSetRequest(request.0, Self::request_type(lock_type)) };
+            if result == 0 {
+                failed = Some((lock_type, unsafe { errhandlingapi::GetLastError() }));
+                break;
             }
-            borrowed.update()?;
         }
-        Ok(Self { manager, types })
+        match failed {
+            Some((failed_type, err_code)) => {
+                for lock_type in types.iter().take_while(|t| *t != failed_type) {
+                    unsafe { winbase::PowerClearRequest(request.0, Self::request_type(lock_type)) };
+                }
+                Err(Error::FailedToLock {
+                    lock_type: failed_type,
+                    err_code,
+                })
+            }
+            None => Ok(Self { request, types }),
+        }
+    }
+
+    fn request_type(lock_type: LockType) -> POWER_REQUEST_TYPE {
+        match lock_type {
+            LockType::AutomaticSuspend => winnt::PowerRequestSystemRequired,
+            LockType::ManualSuspend => winnt::PowerRequestAwayModeRequired,
+        }
     }
 }
 
 impl Drop for Lock {
     fn drop(&mut self) {
-        let mut borrowed = self.manager.borrow_mut();
         for lock_type in self.types.iter() {
-            borrowed.active_locks[lock_type] -= 1;
+            unsafe { winbase::PowerClearRequest(self.request.0, Self::request_type(lock_type)) };
         }
-        let _ = borrowed.update(); // If sending fails, the background thread has probably panicked.
+    }
+}
+
+#[derive(Debug)]
+struct PowerRequest(HANDLE);
+
+impl PowerRequest {
+    fn new() -> Result<Self, DWORD> {
+        let mut context: REASON_CONTEXT = Default::default();
+        context.Version = winnt::POWER_REQUEST_CONTEXT_VERSION;
+        context.Flags = winnt::POWER_REQUEST_CONTEXT_SIMPLE_STRING;
+        let mut text: Vec<u16> = "why".encode_utf16().collect();
+        unsafe { *context.Reason.SimpleReasonString_mut() = text.as_mut_ptr() };
+
+        let request = unsafe { winbase::PowerCreateRequest(&mut context) };
+        if request.is_null() {
+            Err(unsafe { errhandlingapi::GetLastError() })
+        } else {
+            Ok(Self(request))
+        }
+    }
+}
+
+impl Drop for PowerRequest {
+    fn drop(&mut self) {
+        unsafe { handleapi::CloseHandle(self.0) };
     }
 }
 
 impl crate::Lock for Lock {}
-
-const INHIBITOR_THREAD_STACK_SIZE: usize = 1024;
-
-fn do_inhibit_sleep(types: EnumSet<LockType>) {
-    let mut flags = winnt::ES_CONTINUOUS;
-    if !types.is_empty() {
-        flags |= winnt::ES_SYSTEM_REQUIRED;
-        if types.contains(LockType::ManualSuspend) {
-            flags |= winnt::ES_AWAYMODE_REQUIRED;
-        }
-    }
-    unsafe {
-        // TODO: handle errors?
-        winbase::SetThreadExecutionState(flags);
-    }
-}
