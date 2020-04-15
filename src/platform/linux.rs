@@ -34,11 +34,10 @@ impl crate::InhibitionManager for InhibitionManager {
     type Error = dbus::Error;
     type Lock = Lock;
 
-    fn lock(&self, types: EnumSet<LockType>) -> Result<Lock, Self::Error> {
-        // TODO: provide better where/why info.
+    fn lock(&self, types: EnumSet<LockType>, who: &str, why: &str) -> Result<Lock, Self::Error> {
         let types_str = lock_types_str(types);
         // TODO: recover from connection closure?
-        let handle = self.connection.inhibit(&types_str, "who", "why", "block")?;
+        let handle = self.connection.inhibit(&types_str, who, why, "block")?;
         Ok(Lock { _handle: handle })
     }
 }

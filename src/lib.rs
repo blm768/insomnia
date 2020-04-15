@@ -15,9 +15,19 @@ pub trait InhibitionManager {
     type Lock: Lock;
 
     /// Produces a new [`Lock`] that inhibits the given operations
+    /// # Parameters
+    ///
+    /// - `types`: The types of operations to inhibit
+    /// - `who`: A human-readable description of the application that is obtaining the lock
+    /// - `why`: The reason for obtaining the lock
     ///
     /// [`Lock`]: ./trait.Lock.html
-    fn lock(&self, types: EnumSet<LockType>) -> Result<Self::Lock, Self::Error>;
+    fn lock(
+        &self,
+        types: EnumSet<LockType>,
+        who: &str,
+        why: &str,
+    ) -> Result<Self::Lock, Self::Error>;
 }
 
 /// Inhibits a particular power management operation until the `Lock` is dropped.

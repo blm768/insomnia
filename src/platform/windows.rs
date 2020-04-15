@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use enumset::EnumSet;
 use winapi::shared::minwindef::DWORD;
 use winapi::um::errhandlingapi;
@@ -20,8 +22,8 @@ impl crate::InhibitionManager for InhibitionManager {
     type Error = Error;
     type Lock = Lock;
 
-    fn lock(&self, types: EnumSet<LockType>) -> Result<Lock, Self::Error> {
-        Lock::new(types)
+    fn lock(&self, types: EnumSet<LockType>, who: &str, why: &str) -> Result<Lock, Self::Error> {
+        Lock::new(types, &format_msg(who, why))
     }
 }
 
@@ -55,8 +57,8 @@ pub struct Lock {
 }
 
 impl Lock {
-    fn new(types: EnumSet<LockType>) -> Result<Self, Error> {
-        let request = PowerRequest::new().map_err(Error::FailedToCreateRequest)?;
+    fn new(types: EnumSet<LockType>, msg: &str) -> Result<Self, Error> {
+        let request = PowerRequest::new(msg).map_err(Error::FailedToCreateRequest)?;
         let mut failed: Option<(LockType, DWORD)> = None;
         for lock_type in types.iter() {
             let result =
@@ -96,15 +98,17 @@ impl Drop for Lock {
     }
 }
 
+impl crate::Lock for Lock {}
+
 #[derive(Debug)]
 struct PowerRequest(HANDLE);
 
 impl PowerRequest {
-    fn new() -> Result<Self, DWORD> {
+    fn new(msg: &str) -> Result<Self, DWORD> {
         let mut context: REASON_CONTEXT = Default::default();
         context.Version = winnt::POWER_REQUEST_CONTEXT_VERSION;
         context.Flags = winnt::POWER_REQUEST_CONTEXT_SIMPLE_STRING;
-        let mut text: Vec<u16> = "why".encode_utf16().collect();
+        let mut text: Vec<u16> = msg.encode_utf16().collect();
         unsafe { *context.Reason.SimpleReasonString_mut() = text.as_mut_ptr() };
 
         let request = unsafe { winbase::PowerCreateRequest(&mut context) };
@@ -122,4 +126,10 @@ impl Drop for PowerRequest {
     }
 }
 
-impl crate::Lock for Lock {}
+fn format_msg<'a>(who: &str, why: &'a str) -> Cow<'a, str> {
+    if who.is_empty() {
+        Cow::Borrowed(why)
+    } else {
+        Cow::Owned(format!("{}: {}", who, why))
+    }
+}
