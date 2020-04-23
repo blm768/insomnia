@@ -23,7 +23,7 @@ pub trait InhibitionManager {
     ///
     /// [`Lock`]: ./trait.Lock.html
     fn lock(
-        &self,
+        &mut self,
         types: EnumSet<LockType>,
         who: &str,
         why: &str,
