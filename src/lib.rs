@@ -34,7 +34,7 @@ pub trait InhibitionManager {
 /// Inhibits a particular power management operation until the `Lock` is dropped.
 ///
 /// Note that on some platforms, the lock *may* be terminated early under rare circumstances, i.e. if `systemd_logind` is restarted on Linux.
-pub trait Lock {}
+pub trait Lock: Send {}
 
 /* TODO: support inhibiting screensaver and monitor power saving?
 (Requires using the GNOME API on Linux (need to investigate what APIs other DEs provide)

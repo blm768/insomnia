@@ -103,6 +103,8 @@ impl Drop for Lock {
     }
 }
 
+unsafe impl Send for Lock {}
+
 impl crate::Lock for Lock {}
 
 #[derive(Debug)]
