@@ -1,78 +1,56 @@
 use std::borrow::Cow;
-use std::mem::ManuallyDrop;
+use std::time::Duration;
 
 use dbus::arg::OwnedFd;
+use dbus::blocking::{BlockingSender, Connection};
+use dbus::message::Message;
+
 use enumset::EnumSet;
-use logind_dbus::{LoginManager, LoginManagerConnection};
 
 use crate::LockType;
 
 pub struct InhibitionManager {
-    manager: Box<LoginManager>,
-    connection: Option<ManuallyDrop<LoginManagerConnection<'static>>>,
+    connection: Connection,
 }
+
+const DBUS_TIMEOUT: Duration = Duration::from_millis(250); // TODO: make configurable.
 
 impl InhibitionManager {
     pub fn new() -> Result<Self, dbus::Error> {
-        let manager = Box::new(LoginManager::new()?);
-        let static_manager: &'static _ = unsafe { &*(&*manager as *const LoginManager) };
-        let connection = Some(ManuallyDrop::new(static_manager.connect()));
-        Ok(Self {
-            manager,
-            connection,
-        })
-    }
-
-    fn reconnect(&mut self) -> &LoginManagerConnection {
-        // TODO: can we detect and handle disconnections from the dbus daemon itself?
-        let static_manager: &'static _ = unsafe { &*(&*self.manager as *const LoginManager) };
-        let new_conn = static_manager.connect();
-        let _ = self
-            .connection
-            .replace(ManuallyDrop::new(new_conn))
-            .map(ManuallyDrop::into_inner);
-        self.connection.as_ref().unwrap()
-    }
-
-    fn disconnect(&mut self) {
-        let _ = self.connection.take().map(ManuallyDrop::into_inner);
+        let connection = Connection::new_system()?;
+        Ok(Self { connection })
     }
 }
 
-impl Drop for InhibitionManager {
-    fn drop(&mut self) {
-        self.disconnect();
-    }
-}
+const LOGIND_NAME: &'static str = "org.freedesktop.login1";
+const LOGIND_PATH: &'static str = "/org/freedesktop/login1";
+const LOGIND_MANAGER_INTERFACE: &'static str = "org.freedesktop.login1.Manager";
 
 impl crate::InhibitionManager for InhibitionManager {
-    type Error = dbus::Error;
     type Lock = Lock;
+    type Error = dbus::Error;
 
     fn lock(
-        &mut self,
+        &self,
         types: EnumSet<LockType>,
         who: &str,
         why: &str,
-    ) -> Result<Lock, Self::Error> {
-        let types_str = lock_types_str(types);
-        let conn = match self.connection {
-            Some(ref c) => c as &LoginManagerConnection<'_>,
-            None => self.reconnect(),
-        };
-        let result = conn.inhibit(&types_str, who, why, "block");
-        match result {
-            Ok(handle) => Ok(Lock { _handle: handle }),
-            Err(e) => {
-                if treat_as_disconnect(&e) {
-                    self.disconnect();
-                }
-                Err(e)
-            }
-        }
+    ) -> Result<Self::Lock, dbus::Error> {
+        let what = lock_types_str(types);
+        let msg = Message::call_with_args(
+            LOGIND_NAME,
+            LOGIND_PATH,
+            LOGIND_MANAGER_INTERFACE,
+            "Inhibit",
+            (&*what, who, why, "block"),
+        );
+        let (handle,) = self
+            .connection
+            .send_with_reply_and_block(msg, DBUS_TIMEOUT)?
+            .read_all()?;
+        Ok(Lock { _handle: handle })
     }
 }
-
 #[derive(Debug)]
 pub struct Lock {
     _handle: OwnedFd,
@@ -96,14 +74,5 @@ fn lock_type_name(lock_type: LockType) -> &'static str {
         LockType::AutomaticSuspend => "idle",
         LockType::ManualSuspend => "sleep",
         LockType::ManualShutdown => "shutdown",
-    }
-}
-
-fn treat_as_disconnect(err: &dbus::Error) -> bool {
-    match err.name() {
-        Some("org.freedesktop.DBus.Error.NoReply") => true,
-        Some("org.freedesktop.DBus.Error.Timeout") => true,
-        Some("org.freedesktop.DBus.Error.Disconnected") => true,
-        _ => false,
     }
 }

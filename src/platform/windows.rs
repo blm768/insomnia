@@ -22,12 +22,7 @@ impl crate::InhibitionManager for InhibitionManager {
     type Error = Error;
     type Lock = Lock;
 
-    fn lock(
-        &mut self,
-        types: EnumSet<LockType>,
-        who: &str,
-        why: &str,
-    ) -> Result<Lock, Self::Error> {
+    fn lock(&self, types: EnumSet<LockType>, who: &str, why: &str) -> Result<Lock, Self::Error> {
         Lock::new(types, &format_msg(who, why))
     }
 }

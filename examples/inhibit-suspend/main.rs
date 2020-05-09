@@ -5,7 +5,7 @@ use insomnia::platform;
 use insomnia::{InhibitionManager, LockType};
 
 fn main() -> Result<(), <platform::InhibitionManager as InhibitionManager>::Error> {
-    let mut manager = insomnia::manager()?;
+    let manager = insomnia::manager()?;
     let lock_a = manager.lock(
         EnumSet::only(LockType::AutomaticSuspend),
         "Suspend example",
