@@ -5,7 +5,7 @@ use dbus::arg::OwnedFd;
 use dbus::blocking::{BlockingSender, Connection};
 use dbus::message::Message;
 
-use enumset::EnumSet;
+use wasmer_enumset::EnumSet;
 
 use crate::LockType;
 

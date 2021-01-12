@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use enumset::EnumSet;
 use insomnia::platform;
 use insomnia::{InhibitionManager, LockType};
+use wasmer_enumset::EnumSet;
 
 fn main() -> Result<(), <platform::InhibitionManager as InhibitionManager>::Error> {
     let manager = insomnia::manager()?;
