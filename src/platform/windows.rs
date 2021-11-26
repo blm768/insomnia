@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::iter;
 
 use wasmer_enumset::EnumSet;
 use winapi::shared::minwindef::DWORD;
@@ -86,6 +87,7 @@ impl Lock {
         match lock_type {
             LockType::AutomaticSuspend => winnt::PowerRequestSystemRequired,
             LockType::ManualSuspend => winnt::PowerRequestAwayModeRequired,
+            LockType::Screen => winnt::PowerRequestDisplayRequired,
         }
     }
 }
@@ -110,7 +112,9 @@ impl PowerRequest {
         let mut context: REASON_CONTEXT = Default::default();
         context.Version = winnt::POWER_REQUEST_CONTEXT_VERSION;
         context.Flags = winnt::POWER_REQUEST_CONTEXT_SIMPLE_STRING;
-        let mut text: Vec<u16> = msg.encode_utf16().collect();
+
+        // Encode and null-terminate the string as a c-style utf16
+        let mut text: Vec<u16> = msg.encode_utf16().chain(iter::once(0)).collect();
         unsafe { *context.Reason.SimpleReasonString_mut() = text.as_mut_ptr() };
 
         let request = unsafe { winbase::PowerCreateRequest(&mut context) };
