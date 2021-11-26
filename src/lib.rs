@@ -52,6 +52,10 @@ pub enum LockType {
     /// Manual shutdown
     #[cfg(target_os = "linux")]
     ManualShutdown,
+    // TODO: implement on linux
+    /// Screensaver / Screen sleep
+    #[cfg(target_os = "windows")]
+    Screen,
 }
 
 // TODO: keep a single persistent instance? (probably...)
