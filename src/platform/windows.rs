@@ -109,9 +109,11 @@ struct PowerRequest(HANDLE);
 
 impl PowerRequest {
     fn new(msg: &str) -> Result<Self, DWORD> {
-        let mut context: REASON_CONTEXT = Default::default();
-        context.Version = winnt::POWER_REQUEST_CONTEXT_VERSION;
-        context.Flags = winnt::POWER_REQUEST_CONTEXT_SIMPLE_STRING;
+        let mut context: REASON_CONTEXT = REASON_CONTEXT {
+            Version: winnt::POWER_REQUEST_CONTEXT_VERSION,
+            Flags: winnt::POWER_REQUEST_CONTEXT_SIMPLE_STRING,
+            ..Default::default()
+        };
 
         // Encode and null-terminate the string as a c-style utf16
         let mut text: Vec<u16> = msg.encode_utf16().chain(iter::once(0)).collect();
