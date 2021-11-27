@@ -42,8 +42,8 @@ Probably requires using another API call on Windows to inhibit the screensaver; 
 /// The type of power management operation to inhibit
 ///
 /// Note that on some platforms, one variant of this enum may imply another.
-/// For instance, on Windows, it's not possible to inhibit `ManualSuspend` without
-/// also inhibiting `AutomaticSuspend`.
+/// For instance, on Windows, it's not possible to inhibit [`LockType::ManualSuspend`] without
+/// also inhibiting [`LockType::AutomaticSuspend`].
 #[derive(Debug, EnumSetType)]
 pub enum LockType {
     /// Automatic suspension (managed by the system idle timer)
