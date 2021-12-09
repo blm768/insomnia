@@ -41,7 +41,9 @@ pub trait Lock: Send {}
 Probably requires using another API call on Windows to inhibit the screensaver; SetThreadExecutionState apparently doesn't do that. */
 /// The type of power management operation to inhibit
 ///
-/// Note that on some platforms, one variant of this enum may imply another. For instance, on Windows, it's not possible to inhibit `ManualSuspend` without also inhibiting `AutomaticSuspend`.
+/// Note that on some platforms, one variant of this enum may imply another.
+/// For instance, on Windows, it's not possible to inhibit [`LockType::ManualSuspend`] without
+/// also inhibiting [`LockType::AutomaticSuspend`].
 #[derive(Debug, EnumSetType)]
 pub enum LockType {
     /// Automatic suspension (managed by the system idle timer)
@@ -54,6 +56,11 @@ pub enum LockType {
     ManualShutdown,
     // TODO: implement on linux
     /// Screensaver / Screen sleep
+    ///
+    /// ## On Windows
+    /// A [`LockType::AutomaticSuspend`] must be taken in addition to a
+    /// [`LockType::Screen`] to ensure the display stays on and the system does
+    /// not enter sleep for the duration of the request.
     #[cfg(target_os = "windows")]
     Screen,
 }
