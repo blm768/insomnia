@@ -10,7 +10,7 @@ repository = "https://github.com/blm768/insomnia/"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-wasmer_enumset = "1"
+enumset = "^1.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 dbus = "0.9"

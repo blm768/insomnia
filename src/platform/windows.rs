@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::iter;
 
-use wasmer_enumset::EnumSet;
+use enumset::EnumSet;
 use winapi::shared::minwindef::DWORD;
 use winapi::um::errhandlingapi;
 use winapi::um::minwinbase::REASON_CONTEXT;

@@ -1,5 +1,5 @@
-pub use wasmer_enumset::EnumSet;
-use wasmer_enumset::EnumSetType;
+pub use enumset::EnumSet;
+use enumset::EnumSetType;
 
 /// Platform-specific types
 pub mod platform;
